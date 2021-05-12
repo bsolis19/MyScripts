@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# log_call: logs phone call information using entered data
+
+declare -r PROGNAME=$(basename $0)
+
+CALLER_PROMPT="Name of Person (Company): "
+PURPOSE_PROMPT="Purpose of Call: "
+NOTES_PROMPT="Notes: "
+
+date=$(date '+%Y-%m-%d')
+time=$(date '+%H:%M')
+
+flag=0
+filepath="$HOME/Calls/phone_calls.log"
+trimmed_txt=""
+
+declare -A call_data=([date]=$date [time]=$time)
+declare -A prompts=([caller]=$CALLER_PROMPT [purpose]=$PURPOSE_PROMPT [notes]=$NOTES_PROMPT)
+
+declare -a order=(date time caller purpose notes)
+declare -a input_fields=(caller purpose notes)
+
+usage () {
+    echo "$PROGNAME: usage: $PROGNAME [file]"
+    return
+}
+
+debug () {
+    printf "\nDEBUG: $1\n"
+}
+
+validate_not_empty () {
+    if [[ -n $1 ]]; then
+        flag=0
+    else
+        flag=1
+    fi
+}
+
+trim () {
+    trimmed_txt=$(echo $1 | sed -e "s/^[[:space:]]*//" -e "s/[[:space:]]*$//")
+}
+
+trim_inputs () {
+    for name in "${input_fields[@]}"
+    do
+        trim ${call_data[$name]}
+        call_data[$name]=$trimmed_txt
+    done
+}
+
+write_line () {
+    if [ "$#" -eq 2 ]; then
+        printf "[%s]: %s\n" $1 $2 >> $filepath
+
+    elif [ "$#" -eq 1 ]; then
+        printf "%s\n" $1 >> $filepath
+    fi
+}
+
+log_data () {
+    for key in "${order[@]}";
+    do
+        write_line $key ${call_data[$key]};
+    done
+    # append empty line
+    write_line "";
+}
+
+get_inputs () {
+    for field in "${input_fields[@]}";
+    do
+        if [[ "$field" != "notes" ]];then
+            read -p "${prompts[$field]}" call_data[$field];
+            validate_not_empty call_data[$field];
+            while [[ $flag == 1 ]]; do
+                read -p "Enter a $field!: " call_data[$field]
+                validate_not_empty call_data[$field]
+            done;
+        else
+            read -d \~ -p "$NOTES_PROMPT"$'\n' call_data[$field];
+        fi;
+    done
+}
+
+touch_file () {
+    # Make file as needed
+    if [ ! -e $1 ]; then
+        echo > $1
+    fi
+}
+
+main () {
+
+    if [[ -n $1 ]]; then
+        filepath=$1;
+    fi
+    OLD_IFS=$IFS
+    IFS=
+    get_inputs
+    
+    echo "saving data ..."
+    
+    trim_inputs
+    touch_file $filepath
+    log_data
+    
+    printf 'Logged Phone Call Data to %s\n' $filepath
+
+    IFS=$OLD_IFS
+}
+
+if [[ $# -gt 1 ]]; then
+    usage
+    exit 1
+fi
+main $1
